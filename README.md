@@ -1,8 +1,8 @@
 # Transforming service to long-polling
 
 ## Overview
-In this tutorial, a way to transform a standard synchronous service to a redirect-based long-polled service. 
-The example source uses Spring Framework but the transformation can be applied to solutions based
+In this tutorial, a way to transform a standard synchronous service to a redirect-based long-polled service is presented. 
+The example application is written in JAVA and based on Spring Framework, but the transformation can be applied to solutions based
 on other frameworks and languages too.
 
 ## Motivation
@@ -15,9 +15,9 @@ anymore, but let the requests trigger asynchronous jobs. By this change, the cli
 the result data immediately, but only an identifier to the job and the client is free to pool the status
 of the job anytime.
 
-When this change is made it is worth to consider the impact on the clients: changing from one synchronous call
+When this change is made, it is worth to consider the impact on the clients: changing from one synchronous call
 to a polling is a typical example of both service and client code changing (and gaining extra complexity).
-Therefore, if the number of clients is high (or not even known, in the case of a public service) it might be
+Therefore, if the number of clients is high (or not even exactly known, in the case of a public service) it might be
 adequate to look for a way, which impacts only the service.
 
 One of the possible ways can be introducing long-polling combined with HTTP redirects.
@@ -35,7 +35,7 @@ public BusinessObject getTheAnswer() {
 Let's assume, that the execution time of ```businessService.doInternalCalculation()``` grows as time passes by. 
 
 At this stage the clients are simply firing a REST call to the endpoint of the service.
-Invoking the example service (OriginalController), the network traffic pattern is simple:
+Invoking the example service ([OriginalController](src/main/java/com/example/OriginalController.java)), the network traffic pattern is simple:
 
 <img src="original.png"/><br/>
 
@@ -44,7 +44,7 @@ Only one REST call is being made, which return with HTTP 200 and result can be f
 ## State 1 - Introducing long polling
 
 As stated above, the main change is to let the service start (or even just queue up) a job upon a received REST call.
-After this change, the controller's above presented method is changed and the controller gains a new method:
+After this change, the controller's above presented method is changed and the controller gains a new method (see [LongPollingController](src/main/java/com/example/LongPollingController.java) for actual implementation details):
 
 ```
 @GetMapping
@@ -56,8 +56,11 @@ public JobStatus getTheAnswer() {
 
 @GetMapping("/{id}")
 public JobStatus getJobStatus(@PathVariable int id) {
-    final Future<BusinessObject> futureResult = ... find the job based on the id ...;
-    final BusinessObject result = futureResult.get(... timeout ...) // Wait for result (but wait no longer as the defined timeout)
+    // Find the job based on the ID
+    final Future<BusinessObject> futureResult = ...;
+    
+    // Wait for result (but wait no longer as the defined timeout)
+    final BusinessObject result = futureResult.get(... timeout ...);
     
     // 1. If timeout happened
     return JobStatus( ... containing the fact, that the job is still running ... );
@@ -78,7 +81,7 @@ The client had to fire up multiple requests against multiple endpoints. All the 
 
 ## State 2 - Introducing redirects
 In order to avoid leveraging the client with the points above, the service can utilise HTTP redirect responses.
-To do so, the service shall change both the methods as follows:
+To do so, the service shall change both the methods as follows (see the concrete changes in [RedirectLongPollingController](src/main/java/com/example/RedirectLongPollingController.java)):
 ```
 @GetMapping
 public RedirectView getTheAnswer() {
@@ -89,8 +92,11 @@ public RedirectView getTheAnswer() {
 
 @GetMapping("/{id}")
 public Object getJobStatus(@PathVariable int id) {
-    final Future<BusinessObject> futureResult = ... find the job based on the id ...;
-    final BusinessObject result = futureResult.get(... timeout ...) // Wait for result (but wait no longer as the defined timeout)
+    // Find the job based on the ID
+    final Future<BusinessObject> futureResult = ...;
+    
+    // Wait for result (but wait no longer as the defined timeout)
+    final BusinessObject result = futureResult.get(... timeout ...);
     
     // 1. If timeout happened
     return RedirectView(... pointing to this endpoint...);
@@ -104,7 +110,8 @@ The client does not have to introduce new DTOs (such as JobStatus in State 1), n
 
 The network pattern shows a different flow as in State 1.
 <img src="long-polling-with-redirects.png"/><br/>
-In this case, the client had to fire up one request which lead to a chain of redirects, which were followed automatically. HTTP 200 response arrives only when the actual business result is available. 
+In this case, the client had to fire up one request which lead to a chain of redirects, which were followed automatically. 
+HTTP 200 response code is used only when the actual business result is available, as long as it is not available, HTTP 302 is returned. 
 
 ## Further notes
 ### About other possibilities
@@ -117,7 +124,7 @@ and scaling (as that can lead to relevant increase of operation costs).
 ### About limitations
 The idea behind the shown solution is based on two assumptions:
 - that every network element is going support redirections (which might not be true in case of firewalls)
-- that the client is going to follow redirections (which is a common default setting in most of the REST clients, but the service can not actually proof or enforce it)
+- that the client is going to follow redirections (which is a common default setting in most of the REST clients, but the service can not actually probe nor enforce it)
 
 ### About architecture (direction of dependency)
 Although, it is true, that in this way the service is gaining extra complexity in order to help the clients
