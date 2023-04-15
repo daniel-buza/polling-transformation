@@ -1,4 +1,4 @@
-# Transforming service to long-polling
+# Transforming service to redirect based long-polling
 
 ## Overview
 In this tutorial, a way to transform a standard synchronous service to a redirect-based long-polled service is presented. 
